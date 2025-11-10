@@ -5,44 +5,196 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Läxa 1 – Verb</title>
   <style>
-    :root { --bg:#f5f5f5; --card:#fff; --border:#dcdcdc; --red:#ff6b6b; --green-light:#a8e6a1; --green-dark:#4caf50; }
+    :root { --bg:#f5f5f5; --card:#fff; --border:#dcdcdc; --red:#ff6b6b; --green-light:#a8e6a1; --green-dark:#4caf50; --muted:#666; }
     body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 1.5rem; }
     h1 { margin-bottom: 1rem; }
-    .list { display: grid; gap: 0.5rem; }
+    .list { display: grid; gap: 0.5rem; max-width:900px; margin:0 auto 1rem; }
     .row { background: var(--card); border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .75rem; display: flex; justify-content: space-between; gap: .75rem; align-items: center; }
-    .name { font-weight: 500; text-decoration: underline; cursor: pointer; }
+    .name { font-weight: 600; text-decoration: underline; cursor: pointer; color: #111; }
     .status-buttons { display: flex; gap: .35rem; }
-    .status-btn { width: 1.9rem; height: 1.9rem; border-radius: 9999px; border: 2px solid transparent; cursor: pointer; }
+    .status-btn { width: 1.9rem; height: 1.9rem; border-radius: 9999px; border: 2px solid transparent; cursor: pointer; transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease; display:inline-block; }
     .status-btn.red { background: var(--red); }
     .status-btn.green-light { background: var(--green-light); }
     .status-btn.green-dark { background: var(--green-dark); }
-    .status-btn.active { border-color: #00000055; }
+    /* Glow per level when active */
+    .status-btn.active[data-level="red"] { box-shadow: 0 0 12px rgba(255,107,107,0.65); transform: scale(1.06); border-color:#8b1f1f44; }
+    .status-btn.active[data-level="green-light"] { box-shadow: 0 0 12px rgba(168,230,161,0.65); transform: scale(1.06); border-color:#2f6f2f44; }
+    .status-btn.active[data-level="green-dark"] { box-shadow: 0 0 12px rgba(76,175,80,0.65); transform: scale(1.06); border-color:#2f6f2f44; }
+    .status-btn:focus { outline: none; box-shadow: 0 0 6px rgba(0,0,0,0.08); }
     .btn-back { margin-bottom: 1rem; display: inline-block; }
+    button.save { margin-top: 1rem; padding: .5rem .9rem; font-size: 1rem; border-radius: .4rem; border: none; background: var(--green-dark); color: white; cursor: pointer; }
+    /* Modal */
+    .modal-backdrop { position: fixed; inset:0; background: rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; z-index:9999; }
+    .modal { background:#fff; border-radius:8px; padding:1rem 1.25rem; max-width:600px; width:95%; box-shadow:0 10px 30px rgba(0,0,0,0.2); max-height:80vh; overflow:auto; }
+    .modal h3 { margin-top:0; }
+    .history-list { margin-top:.5rem; display:flex; flex-direction:column; gap:.4rem; }
+    .hist-item { display:flex; gap:.6rem; align-items:center; padding:.4rem .5rem; border-radius:.4rem; background:#fafafa; border:1px solid #eee; }
+    .dot { width:14px; height:14px; border-radius:50%; flex:0 0 14px; }
+    .hist-meta { font-size:.9rem; color:var(--muted); }
+    .modal .close { float:right; background:transparent;border:none;font-size:1.05rem;cursor:pointer; }
+    .empty { color:var(--muted); font-style:italic; }
+    @media (max-width:520px){ .row { padding:.6rem; } .status-btn{ width:1.7rem;height:1.7rem; } }
   </style>
 </head>
 <body>
   <a href="index.html" class="btn-back">← Tillbaka</a>
   <h1>Läxa 1: Verb</h1>
+
   <div class="list" id="listVerb"></div>
-  <button onclick="saveVerb()">Spara</button>
+  <div style="text-align:center;">
+    <button class="save" id="saveBtn">Spara</button>
+  </div>
+
+  <!-- Modal placeholder -->
+  <div id="modalRoot" style="display:none;"></div>
 
   <script>
-    const students = ["Adin","Amin","Viktor","Hugo","Gustav","Teo","Evy","Peggy","Ellen","Mella","Celina","Cissi","Emmy","Arvid","Davud","Abdullah","Oliver","Xia","Matilda","Harry","Filip","Liam","Emma","Jacob"];
-    const keyVerb = 'elevData_engelskaVerb';
+    // Lista på elever - lägg till eller byt ut efter behov
+    const students = ["Adin","Amin","Viktor","Hugo","Gustav","Teo","Evy","Peggy","Ellen","Mella","Celina","Cissi","Emmy","Arvid","Davud","Abdullah","Oliver","Xia","Matilda","Harry","Filip","Liam"];
+    const homeworkId = 'Verb';
+    const keyCurrent = 'elevData_engelskaVerb';
+    const historyKey = 'elevHistorik';
     const listVerb = document.getElementById('listVerb');
+    const modalRoot = document.getElementById('modalRoot');
 
     function createVerbRow(name, index, saved){
       const row = document.createElement('div');
       row.className = 'row';
       row.dataset.index = index;
-      row.innerHTML = `<span class='name'>${name}</span><div class='status-buttons'><button class='status-btn red' data-level='red'></button><button class='status-btn green-light' data-level='green-light'></button><button class='status-btn green-dark' data-level='green-dark'></button></div>`;
+      row.innerHTML = `
+        <span class='name' title="Klicka för att se tidigare resultat">${escapeHtml(name)}</span>
+        <div class='status-buttons'>
+          <button class='status-btn red' data-level='red' title="Röd (ej klar)"></button>
+          <button class='status-btn green-light' data-level='green-light' title="Gulgrön (nästan)"></button>
+          <button class='status-btn green-dark' data-level='green-dark' title="Grön (klar)"></button>
+        </div>
+      `;
+      const nameEl = row.querySelector('.name');
+      nameEl.addEventListener('click', ()=> showHistory(name));
+
       const btns = row.querySelectorAll('.status-btn');
-      btns.forEach(btn=>{btn.addEventListener('click',()=>{btns.forEach(b=>b.classList.remove('active'));btn.classList.add('active');saveVerb();});});
-      if(saved?.level){const b=row.querySelector(`.status-btn.${saved.level}`); if(b) b.classList.add('active');}
+      btns.forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          btns.forEach(b=>b.classList.remove('active'));
+          btn.classList.add('active');
+        });
+      });
+
+      if(saved && saved.level){
+        const b = row.querySelector(`.status-btn[data-level="${saved.level}"]`);
+        if(b) b.classList.add('active');
+      }
+
       return row;
     }
-    function loadVerb(){const saved=JSON.parse(localStorage.getItem(keyVerb)||'{}');students.forEach((n,i)=>{listVerb.appendChild(createVerbRow(n,i,saved[i]));});}
-    function saveVerb(){const data={};document.querySelectorAll('#listVerb .row').forEach(r=>{const i=r.dataset.index;const active=r.querySelector('.status-btn.active');const level=active?active.dataset.level:null;data[i]={level};});localStorage.setItem(keyVerb,JSON.stringify(data));}
+
+    function loadVerb(){
+      const saved = JSON.parse(localStorage.getItem(keyCurrent) || '{}');
+      listVerb.innerHTML = '';
+      students.forEach((n,i)=>{
+        const rowSaved = saved[i] || null;
+        listVerb.appendChild(createVerbRow(n,i,rowSaved));
+      });
+    }
+
+    function saveVerb(){
+      const data = {};
+      document.querySelectorAll('#listVerb .row').forEach(r=>{
+        const i = r.dataset.index;
+        const active = r.querySelector('.status-btn.active');
+        const level = active ? active.dataset.level : null;
+        if(level){
+          data[i] = { level };
+        }
+      });
+      // save current snapshot
+      localStorage.setItem(keyCurrent, JSON.stringify(data));
+
+      // append to historik per elev with timestamp
+      const hist = JSON.parse(localStorage.getItem(historyKey) || '{}');
+      const timestamp = new Date().toISOString();
+      document.querySelectorAll('#listVerb .row').forEach(r=>{
+        const i = parseInt(r.dataset.index,10);
+        const name = students[i];
+        const active = r.querySelector('.status-btn.active');
+        const level = active ? active.dataset.level : null;
+        if(!hist[name]) hist[name] = [];
+        // only record if there is a selection
+        if(level){
+          hist[name].push({ homework: homeworkId, level, time: timestamp });
+        }
+      });
+      localStorage.setItem(historyKey, JSON.stringify(hist));
+      // liten visuell bekräftelse
+      const saveBtn = document.getElementById('saveBtn');
+      saveBtn.textContent = 'Sparat ✓';
+      setTimeout(()=> saveBtn.textContent = 'Spara', 1200);
+    }
+
+    function showHistory(name){
+      const hist = JSON.parse(localStorage.getItem(historyKey) || '{}');
+      const entries = hist[name] || [];
+      // Build modal
+      modalRoot.innerHTML = '';
+      const backdrop = document.createElement('div');
+      backdrop.className = 'modal-backdrop';
+      const modal = document.createElement('div');
+      modal.className = 'modal';
+      modal.innerHTML = `<button class="close" title="Stäng">&times;</button><h3>${escapeHtml(name)} — Tidigare resultat</h3>`;
+      const container = document.createElement('div');
+      if(entries.length === 0){
+        container.innerHTML = `<div class="empty">Inga tidigare sparade resultat för ${escapeHtml(name)}.</div>`;
+      } else {
+        const list = document.createElement('div');
+        list.className = 'history-list';
+        // visa senaste först
+        entries.slice().reverse().forEach(e=>{
+          const it = document.createElement('div');
+          it.className = 'hist-item';
+          const dot = document.createElement('div'); dot.className = 'dot';
+          if(e.level === 'red') dot.style.background = 'var(--red)';
+          if(e.level === 'green-light') dot.style.background = 'var(--green-light)';
+          if(e.level === 'green-dark') dot.style.background = 'var(--green-dark)';
+          const meta = document.createElement('div');
+          const t = new Date(e.time);
+          meta.innerHTML = `<div><strong>${escapeHtml(e.homework)}</strong></div><div class="hist-meta">${t.toLocaleString()}</div>`;
+          it.appendChild(dot); it.appendChild(meta); list.appendChild(it);
+        });
+        container.appendChild(list);
+      }
+      // controls: clear history button
+      const controls = document.createElement('div');
+      controls.style.marginTop = '.6rem';
+      controls.innerHTML = `<button id="clearHist" style="background:#e74c3c;color:#fff;border:none;padding:.4rem .6rem;border-radius:.35rem;cursor:pointer">Rensa historik</button> <button id="closeOk" style="margin-left:.6rem;padding:.4rem .6rem;border-radius:.35rem;border:1px solid #ddd;cursor:pointer">Stäng</button>`;
+      modal.appendChild(container); modal.appendChild(controls);
+      backdrop.appendChild(modal);
+      modalRoot.appendChild(backdrop);
+      modalRoot.style.display = 'block';
+
+      const close = modal.querySelector('.close');
+      close.addEventListener('click', ()=> closeModal());
+      modal.querySelector('#closeOk').addEventListener('click', ()=> closeModal());
+      modal.querySelector('#clearHist').addEventListener('click', ()=>{
+        if(confirm(`Rensa historik för ${name}? Detta går inte att ångra.`)){
+          const histAll = JSON.parse(localStorage.getItem(historyKey) || '{}');
+          delete histAll[name];
+          localStorage.setItem(historyKey, JSON.stringify(histAll));
+          showHistory(name); // refresh
+        }
+      });
+
+      backdrop.addEventListener('click', (e)=>{ if(e.target === backdrop) closeModal(); });
+
+      function closeModal(){
+        modalRoot.innerHTML = '';
+        modalRoot.style.display = 'none';
+      }
+    }
+
+    function escapeHtml(str){ return String(str).replace(/[&<>"']/g, function(m){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]; }); }
+
+    document.getElementById('saveBtn').addEventListener('click', saveVerb);
+
     loadVerb();
   </script>
 </body>
