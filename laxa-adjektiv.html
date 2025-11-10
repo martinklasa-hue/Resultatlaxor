@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Läxa 2 – Adjektiv</title>
+  <style>
+    :root { --bg:#f5f5f5; --card:#fff; --border:#dcdcdc; --red:#ff6b6b; --green-light:#a8e6a1; --green-dark:#4caf50; }
+    body { font-family: system-ui, sans-serif; background: var(--bg); margin: 0; padding: 1.5rem; }
+    h1 { margin-bottom: 1rem; }
+    .list { display: grid; gap: 0.5rem; }
+    .row { background: var(--card); border: 1px solid var(--border); border-radius: .5rem; padding: .5rem .75rem; display: flex; justify-content: space-between; gap: .75rem; align-items: center; }
+    .name { font-weight: 500; text-decoration: underline; cursor: pointer; }
+    .status-buttons { display: flex; gap: .35rem; }
+    .status-btn { width: 1.9rem; height: 1.9rem; border-radius: 9999px; border: 2px solid transparent; cursor: pointer; }
+    .status-btn.red { background: var(--red); }
+    .status-btn.green-light { background: var(--green-light); }
+    .status-btn.green-dark { background: var(--green-dark); }
+    .status-btn.active { border-color: #00000055; }
+    .btn-back { margin-bottom: 1rem; display: inline-block; }
+  </style>
+</head>
+<body>
+  <a href="index.html" class="btn-back">← Tillbaka</a>
+  <h1>Läxa 2: Adjektiv</h1>
+  <div class="list" id="listAdj"></div>
+  <button onclick="saveAdj()">Spara</button>
+
+  <script>
+    const studentsAdj=["Adin","Amin","Viktor","Hugo","Gustav","Teo","Evy","Peggy","Ellen","Mella","Celina","Cissi","Emmy","Arvid","Davud","Abdullah","Oliver","Xia","Matilda","Harry","Filip","Liam","Emma","Jacob"];
+    const keyAdj='elevData_engelskaAdj';
+    const listAdj=document.getElementById('listAdj');
+    function createAdjRow(name,index,saved){
+      const row=document.createElement('div');
+      row.className='row';
+      row.dataset.index=index;
+      row.innerHTML=`<span class='name'>${name}</span><div class='status-buttons'><button class='status-btn red' data-level='red'></button><button class='status-btn green-light' data-level='green-light'></button><button class='status-btn green-dark' data-level='green-dark'></button></div>`;
+      const btns=row.querySelectorAll('.status-btn');
+      btns.forEach(btn=>{btn.addEventListener('click',()=>{btns.forEach(b=>b.classList.remove('active'));btn.classList.add('active');saveAdj();});});
+      if(saved?.level){const b=row.querySelector(`.status-btn.${saved.level}`);if(b)b.classList.add('active');}
+      return row;
+    }
+    function loadAdj(){const saved=JSON.parse(localStorage.getItem(keyAdj)||'{}');studentsAdj.forEach((n,i)=>{listAdj.appendChild(createAdjRow(n,i,saved[i]));});}
+    function saveAdj(){const data={};document.querySelectorAll('#listAdj .row').forEach(r=>{const i=r.dataset.index;const active=r.querySelector('.status-btn.active');const level=active?active.dataset.level:null;data[i]={level};});localStorage.setItem(keyAdj,JSON.stringify(data));}
+    loadAdj();
+  </script>
+</body>
+</html>
